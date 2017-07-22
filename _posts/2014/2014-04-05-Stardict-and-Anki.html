@@ -1,0 +1,562 @@
+---
+layout: post
+title: 使用Stardict和Anki联合记单词
+categories:
+- study
+tags:
+- english
+- study
+- dict
+---
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 介绍</a>
+<ul>
+<li><a href="#sec-1-1">1.1 Anki</a></li>
+<li><a href="#sec-1-2">1.2 星际译王（stardict）</a></li>
+</ul>
+</li>
+<li><a href="#sec-2">2 步骤</a>
+<ul>
+<li><a href="#sec-2-1">2.1 通过星际译王查词记录获得词汇</a></li>
+<li><a href="#sec-2-2">2.2 标记</a></li>
+<li><a href="#sec-2-3">2.3 Anki的修饰</a></li>
+</ul>
+</li>
+<li><a href="#sec-3">3 总结</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1">介绍</h2>
+<div class="outline-text-2" id="text-1">
+
+
+</div>
+
+<div id="outline-container-1-1" class="outline-3">
+<h3 id="sec-1-1">Anki<sup><a class="footref" name="fnr-.1" href="#fn-.1">1</a></sup></h3>
+<div class="outline-text-3" id="text-1-1">
+
+<p>   Anki是一个基于间格重复（Spaced Repetition）的字卡软件，同样基于该原理的软件还有商业软件SuperMemo（这个要钱的）和免费软件Mnemosyne。
+</p>
+<p>
+   Anki对SuperMemo的SM2算法予以改进，使其可以根据记忆卡的优先级、紧急程度进行优化调整。SuperMemo的算法已经更新到好多，据Anki作者解释，因为后面的算法比较复杂，而通常用不到，所以就采用了SM2算法。如果你不是很相信这种算法的话，可以使用SuperMemo来比对下。
+</p>
+<p>   
+   值得指出的是Anki记忆卡采用HTML语言编写，支持插入图片、音频以及LaTeX公式，这样方便了我们创造出丰富多彩的卡片格式，也是本文使用的前提。
+</p>
+<p>   
+   Anki支持多平台客户端，包括PC、安卓、iOS、塞班等，也可以直接登录Ankiweb进行学习。除此之外，注册一个免费账户，便可实现平台之间的同步，不过这种同步不能太过于依赖（作者表示记得考试前几天在手机上修改了卡片，到最后竟然不能同步，郁闷死本人了）。另外有个奇葩的问题，Anki的IOS版本是要收费的，而且很不便宜，其他平台如Android版本竟然免费。据作者解释，这是因为有些合作开发的人提出还是要求来着在Android版本上免费，让我们真心感谢这些合作开发者（跪拜大神）。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1-2" class="outline-3">
+<h3 id="sec-1-2">星际译王（stardict）</h3>
+<div class="outline-text-3" id="text-1-2">
+
+<p>   星际译王（StarDict）是一套自由的桌面字典软件。它并不包含字典档，使用者须自行下载配合使用。它可以运行于多种不同的平台，如Linux，Microsoft Windows，FreeBSD及Solaris，并使用GPL授权。
+</p>
+<p>   
+   我们这次并不一定用到这个软件，只要用到其命令行下的命令sdcv以及其词典（注意有些词典是破解版）。
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2">步骤</h2>
+<div class="outline-text-2" id="text-2">
+
+<p>  如果平时你使用星际译王查询陌生单词，是否会想将其记下来然后以后再反复的记忆？于是我们就有了将星际译王和Anki联合的想法。
+</p>
+<p>
+  一搜网上，有人已经写了这么的一个插件 <a href="https://github.com/ying17zi/StarDict-history-to-Anki">StarDict-history-to-Anki</a> ，帮我们实现了这一个功能。但是作为一个审美观念极强的人，我实在不喜欢这个代码实现的纯黑白的卡片，一直想美化它，于是也就有了下文。
+</p>
+</div>
+
+<div id="outline-container-2-1" class="outline-3">
+<h3 id="sec-2-1">通过星际译王查词记录获得词汇</h3>
+<div class="outline-text-3" id="text-2-1">
+
+<p>   原作者的思路很清晰，StarDict每次关闭后（请注意！要关闭StarDict！！！），StarDict目录下会产生一个history文件记录你这次查询的单词记录，再通过sdcv提取出每个义项的解释，略加修饰既可导入anki中。
+</p>
+<p>
+   原作者初始版本的代码请参考上面链接，我在这里展示已经修饰过的代码。
+</p>
+
+
+
+<pre class="example">#!/bin/bash
+# This is a simple script that research the words in the searching history of StarDict.
+#
+# The explanations of each word are saved in a file "~/ankifile" in your $HOME, 
+# which can be loaded later into anki with an option "Fields separated by: Tab". 
+# (when loading "ankifile", remember to check the option "Allow HTML in fields", if your explanations contains html tags)
+
+######## how to install ? ########
+# put it in a folder like "~/bin", and make it executable
+#   $ chmod +x dict2anki
+
+####### how to use ? #######
+# run it without any arguments in terminal
+# $ dict2anki
+#
+# then a file called ~/ankifile is ready to import into Anki
+
+# Note: StarDict creates the history file when it is closed. 
+#       Please run dict2anki with StarDict closed.
+
+######## how to change the name/location of the output file ? #########
+# check the variable "outputFileName", assign you prefered filename
+
+############ how to add more dicts ? ############
+# put a line like the following after the line of "meanings=`sdcv -n \"
+#   -u "dict-name" \
+
+########### how to find the above "dict-name" ##############
+# dict names can be found by searhing a word mannuly with sdcv in terminal.
+#
+# Here in the following is the output of sdcv after searching hello by "$ sdcv hello" on my PC.
+# It promotes all my dict names, e.g., "XDICT英汉辞典", "Collins COBUILD V3", "我爱法语-英法词典". 
+#
+# Found 15 items, similar to hello.
+# 0)XDICT英汉辞典--&gt;hello
+# 1)懒虫简明英汉词典--&gt;hello
+# 2)朗道英汉字典5.0--&gt;hello
+# 3)Merriam-Webster Collegiate® Dictionary--&gt;hello
+# 4)XDICT英汉辞典--&gt;hello
+# 5)CMU American English spelling--&gt;hello
+# 6)Collins COBUILD V3--&gt;hello
+# 7)The CMU Pronouncing Dictionary--&gt;hello
+# 8)Longman Dictionary of Contemporary English--&gt;hello
+# 9)美国传统词典[双解]--&gt;hello
+# 10)stardict1.3英汉辞典--&gt;hello
+# 11)Longman Dictionary of Contemporary English (4th Ed)--&gt;hello
+# 12)Merrian Webster 10th dictionary--&gt;hello
+# 13)我爱法语-法英词典--&gt;hello
+# 14)我爱法语-英法词典--&gt;hello
+# Your choice[-1 to abort]: 
+
+# (ctrl-c to abort also)
+
+############# here we go #############
+
+outputFileName=~/ankifile
+
+# if there is a searching history file "~/.stardict/history"
+if [ -f ~/.stardict/history ]
+then
+
+    while read line
+    do
+        meanings=`sdcv -n \
+            -u "21世纪英汉汉英双向词典" \
+            -u "朗道英汉字典5.0" \
+            -u "牛津英汉双解美化版" \
+            -u "CDICT5英汉辞典" \
+            -u "英文字根字典" \
+            "$line" | sed '/Nothing similar to/d;/Found/d' | perl ~/.beautify.pl`
+
+        # 搜寻媒体文件
+        find /media/学习与工作/Software/SoftwareOfStudy/Dictionary/Lingoes/Translator2/speech/M-W\ English/voice/ -name $line.wav -exec cp {} ~/Anki/cxp/collection.media/ \;
+
+        if [ -n "$meanings" ]; then
+            # the output file is named as "~/ankifile" (in $HOME folder)
+            echo -e "&lt;div id=\"word\"&gt;$line&lt;/div&gt;\t&lt;div class=\"vd_longman\"&gt;[sound:$line.mp3]&lt;/div&gt;\t&lt;div class=\"vd_mw\"&gt;[sound:$line.wav]&lt;/div&gt;\t$meanings"  &gt;&gt; $outputFileName
+        fi
+    # load searching history from "~/.stardict/history"
+    done &lt; ~/.stardict/history
+
+    # move stardict history file to home folder
+    mv ~/.stardict/history  ~/
+
+    echo "Done, saved in $outputFileName"
+else
+    echo "There is no ~/.stardict/history"
+fi
+
+exit
+
+</pre>
+
+
+<p>   
+   为了让大家理解，解释项也贴了进去。下面就是关键的代码，即.beautiful.pl代码。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-2" class="outline-3">
+<h3 id="sec-2-2">标记</h3>
+<div class="outline-text-3" id="text-2-2">
+
+<p>   关于词典的美化，曾经走了歪路。就是想把原词典的每个义项例句单独提取出来，但这种提取方法真的是太复杂了，而且词典格式本来就有些地方不是很标准。
+</p>
+<p>   
+   然后更换了思路，对其中的关键特征进行标记。每个词典都是一个列表，每列都有一个单独的class属性（对html有一丁点的认识的都应该知道，本文作者只是一只菜鸟都理解了。。。啊哈哈哈哈），用以区分义项、例句和其他。
+</p>
+<p>
+   标记解释：k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他。
+</p>
+<p>  
+   具体的代码如下:
+</p>
+
+
+
+<pre class="example">#!/use/bin/perl
+
+use 5.010;
+
+# 判断文件打开
+#if (! open FILE, "dict2anki.tmp") {
+#  die "Cannot open file: $!";
+#  exit;
+#}
+
+# 一次性读取所有数据
+@all_data = &lt;&gt;;
+
+# 获取词典解释起止位置，以哈希存储
+$i=0;
+foreach $all (@all_data) {
+  if ( $all =~ /^(--&gt;朗道)/ ) {
+    push (@cidian, $i);
+    $hdic{"$i"}="langdao";
+  }
+
+  if ( $all =~ /^(--&gt;牛津)/ ) {
+    push (@cidian, $i);
+    $hdic{"$i"}="niujin";
+  }
+
+  if ( $all =~ /^(--&gt;CDICT)/ ) {
+    push (@cidian, $i);
+    $hdic{"$i"}="cdict";
+  }
+
+  if ( $all =~ /^(--&gt;21世纪)/ ) {
+    push (@cidian, $i);
+    $hdic{"$i"}="sj21";
+  }
+
+  if ( $all =~ /^(--&gt;英文字根)/ ) {
+    push (@cidian, $i);
+    $hdic{"$i"}="zigen";
+  }
+
+  $i++;
+}
+$hdic{$i} = "end";
+push (@cidian, $i);
+
+#foreach $key (sort keys %hdic){
+#  $value = $hdic{$key};
+#  print  "$key =&gt; $value \n";
+#}
+
+# 得到由小到大的字典行数排列
+my @keys = sort { $a &lt;=&gt; $b } keys %hdic;
+# print "@keys \n";
+
+# 得到每个字典的解释 landao,niujin,sj21,cdict,zigen分别用@+字典简写访问
+$len = @keys;
+for ($i=0; $i&lt;$len; $i++){
+  $n1 = $hdic{@keys[$i]};
+  @$n1 = @all_data[($keys[$i]+3)..($keys[$i+1]-2)];
+}
+
+# 修改21世纪英汉汉英大辞典的格式
+## 对一些不符合规范的格式调整 将&lt;&lt;&gt;&gt;顶头写
+$len = @sj21;
+for ($i=0; $i&lt;$len; $i++) {
+  if (@sj21[$i] ~~ /&lt;&lt;.*&gt;&gt;/)  {
+    push (@da , $i ); #获取含有&lt;&lt;&gt;&gt;解释项所在数组列
+    if($`) {
+      @sj21[$i-1] = @sj21[$i-1].$`;
+      @sj21[$i] = $&amp;.$';
+    }
+  }
+}
+## 进行标注  &lt;&lt; k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他；
+chomp @sj21[0];
+chomp @sj21[1];
+@sj21[0] = "&lt;div&gt;&lt;ul id=\"sj21\"&gt;&lt;li class=\"k\"&gt;".@sj21[0]."&lt;/li&gt;";
+@sj21[1] = "&lt;li class=\"o\"&gt;".@sj21[1]."&lt;/li&gt;";
+$len = @sj21;
+for ($i=2; $i&lt;$len; $i++) {
+  chomp $sj21[$i];
+  if ($sj21[$i] ~~ /&lt;&lt;.*&gt;&gt;/) {
+    $sj21[$i] = "&lt;li class=\"c\"&gt;".$sj21[$i]."&lt;/li&gt;";
+  } elsif ($sj21[$i] ~~ /( *^[0-9])|( *^[a-z]\.)/) {
+    $sj21[$i] = "&lt;li class=\"m\"&gt;".$sj21[$i]."&lt;/li&gt;";
+  } else {
+    $sj21[$i] = "&lt;li class=\"e\"&gt;".$sj21[$i]."&lt;/li&gt;";
+  }
+}
+foreach $sj21 (@sj21) {
+  $sj21 =~ s/\n//g;        #去掉换行符等；
+  $sj21 =~ s/\r//g;        #去掉换行符等；
+}
+push (@sj21, "&lt;/ul&gt;&lt;/div&gt;");
+
+
+# 修改朗道英汉
+## 进行标注  &lt;&lt; k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他；
+chomp @langdao[0];
+@langdao[0] = "&lt;div&gt;&lt;ul id=\"langdao\"&gt;&lt;li class=\"o\"&gt;".@langdao[0]."&lt;/li&gt;";
+$len = @langdao;
+for ($i=1; $i&lt;$len; $i++) {
+  chomp $langdao[$i];
+  if ($langdao[$i] ~~ / *[a-z]+\./) {
+    $langdao[$i] = "&lt;li class=\"m\"&gt;".$langdao[$i]."&lt;/li&gt;";
+  } elsif ($langdao[$i] ~~ / *(相关词组)/) {
+    $langdao[$i] = "&lt;li class=\"c\"&gt;".$langdao[$i]."&lt;/li&gt;";
+  } else {
+    $langdao[$i] = "&lt;li class=\"e\"&gt;".$langdao[$i]."&lt;/li&gt;";
+  }
+}
+foreach $langdao (@langdao) {
+  $langdao =~ s/\n//g;        #去掉换行符等；
+  $langdao =~ s/\r//g;        #去掉换行符等；
+}
+push (@langdao, "&lt;/ul&gt;&lt;/div&gt;");
+
+# 修改CDICT
+## 进行标注  &lt;&lt; k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他；
+chomp @cdict[0];
+chomp @cdict[1];
+@cdict[0] = "&lt;div&gt;&lt;ul id=\"cdict\"&gt;&lt;li class=\"o\"&gt;".@cdict[0]."&lt;/li&gt;";
+@cdict[1] = "&lt;li class=\"o\"&gt;".@cdict[1]."&lt;/li&gt;";
+$len = @cdict;
+for ($i=2; $i&lt;$len; $i++) {
+  chomp $cdict[$i];
+  if ($cdict[$i] ~~ / *^&lt;&lt;.*&gt;&gt;/) {
+    $cdict[$i] = "&lt;li class=\"c\"&gt;".$cdict[$i]."&lt;/li&gt;";
+  } elsif ($cdict[$i] ~~ /( *^[0-9])|((( *)|(\t)|(\n)|(\r))[a-z]\.)/) {
+    $cdict[$i] = "&lt;li class=\"m\"&gt;".$cdict[$i]."&lt;/li&gt;";
+  } elsif ($cdict[$i] ~~ / *^\[/) {
+    $cdict[$i] = "&lt;li class=\"o\"&gt;".$cdict[$i]."&lt;/li&gt;";
+  } else {
+    $cdict[$i] = "&lt;li class=\"e\"&gt;".$cdict[$i]."&lt;/li&gt;";
+  }
+}
+foreach $cdict (@cdict) {
+  $cdict =~ s/\n//g;        #去掉换行符等；
+  $cdict =~ s/\r//g;        #去掉换行符等；
+}
+push (@cdict, "&lt;/ul&gt;&lt;/div&gt;");
+
+# 修改niujin
+## 进行标注  &lt;&lt; k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他；
+chomp @niujin[0];
+@niujin[0] = "&lt;div&gt;&lt;ul id=\"niujin\"&gt;&lt;li class=\"o\"&gt;".@niujin[0]."&lt;/li&gt;";
+$len = @niujin;
+for ($i=1; $i&lt;$len; $i++) {
+  chomp $niujin[$i];
+  if ($niujin[$i] ~~ / *^[a-z]+/) {
+    $niujin[$i] = "&lt;li class=\"c\"&gt;".$niujin[$i]."&lt;/li&gt;";
+  } elsif ($niujin[$i] ~~ /( *^[0-9])|( *^\([a-z]+\))/) {
+    $niujin[$i] = "&lt;li class=\"m\"&gt;".$niujin[$i]."&lt;/li&gt;";
+  } else {
+    $niujin[$i] = "&lt;li class=\"e\"&gt;".$niujin[$i]."&lt;/li&gt;";
+  }
+}
+foreach $niujin (@niujin) {
+  $niujin =~ s/\n//g;        #去掉换行符等；
+  $niujin =~ s/\r//g;        #去掉换行符等；
+}
+push (@niujin, "&lt;/ul&gt;&lt;/div&gt;");
+
+# 修改英文字根词典
+## 进行标注  &lt;&lt; k  keys  关键词；主项; c  categery  种类；形容词动词等; m  meaning 解释项; e  example 词组或例句; o  other 其他；
+chomp @zigen[0];
+@zigen[0] = "&lt;div&gt;&lt;ul id=\"zigen\"&gt;&lt;li class=\"o\"&gt;".@zigen[0]."&lt;/li&gt;";
+$len = @zigen;
+for ($i=1; $i&lt;$len; $i++) {
+  chomp $zigen[$i];
+  if ($zigen[$i] ~~ / *[a-z]+\./) {
+    $zigen[$i] = "&lt;li class=\"m\"&gt;".$zigen[$i]."&lt;/li&gt;";
+  } elsif ($zigen[$i] ~~ / *(根)/) {
+    $zigen[$i] = "&lt;li class=\"m\"&gt;".$zigen[$i]."&lt;/li&gt;";
+  } else {
+    $zigen[$i] = "&lt;li class=\"e\"&gt;".$zigen[$i]."&lt;/li&gt;";
+  }
+}
+foreach $zigen (@zigen) {
+  $zigen =~ s/\n//g;        #去掉换行符等；
+  $zigen =~ s/\r//g;        #去掉换行符等；
+}
+push (@zigen, "&lt;/ul&gt;&lt;/div&gt;");
+
+# 综合所有修饰结果
+@modified = ("\t",@sj21,"\t" ,@langdao,"\t" ,@niujin,"\t" ,@cdict,"\t",@zigen);
+print "@modified";
+</pre>
+
+
+<p>
+   如此可以对每个义项进行标记，然后分别做不同处理。（词典暂时只有"21世纪英汉汉英双向词典"，"朗道英汉字典5.0"，"牛津英汉双解美化版"，"CDICT5英汉辞典"，"英文字根字典"；个人觉得够了，谁会背单词看那么多词典。。。不过可添加一本例句词典，不知大家有啥建议）
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2-3" class="outline-3">
+<h3 id="sec-2-3">Anki的修饰</h3>
+<div class="outline-text-3" id="text-2-3">
+
+<p>   经过上面的处理，我们在家目录获得了ankifile文件，这个便可以导入Anki程序中。请注意导入时，第1列是单词，第2、3列是预留出来的读音文件，第4、5、6、7、8既是上述的词典顺序（词典是分开的）。
+</p>
+<p>
+   我这里给大家提供一个配色模板，个人觉得还不错（请原谅我无耻的借用了 <a href="http://www.eudic.net/eudic/mac_dictionary.aspx">欧陆词典</a> 的配色方案）。
+</p>
+<p>
+   卡片格式刷中的代码
+</p>
+<blockquote>
+
+<p>*,ul,li {padding: 0; margin: 0; list-style-type: none;}
+</p>
+<p>
+.card {
+font-family: arial;
+font-size: 20px;
+text-align: left;
+color: black;
+background-color: #F8FBEF;
+line-height: 110%;
+}
+</p>
+<p>
+.k  {
+color: #FF0000;
+font-size: 18px;
+}
+</p>
+<p>
+.o  {
+color: #FFCC66;
+}
+</p>
+<p>
+.c  {
+color: #008000;
+}
+</p>
+<p>
+.m  {
+color: #0000FF;#0000CD;
+}
+</p>
+<p>
+.b  {
+color: #000000;
+}
+</p>
+<p>
+.e  {
+color: #9400D3 ;#8A2BE2;
+text-indent: 3%;
+list-style-positon: inside;
+}
+</p>
+</blockquote>
+
+
+
+<p>   
+   正面模板为：
+</p>
+<blockquote>
+
+<p>&lt;div style='font-family: Arial; font-size: 22px;text-align: center;'&gt;{{正面}}&lt;/div&gt;&lt;br&gt;
+</p>
+</blockquote>
+
+
+<p>
+   背面模板为：
+</p>
+<blockquote>
+
+<p>{{FrontSide}} 
+</p>
+<p>
+&lt;div style='font-family: Arial; font-size: 20px;text-align:center;'&gt;{{M-W}}&lt;/div&gt;
+</p>
+<p>
+&lt;hr id=answer&gt;
+{{#Notes}}&lt;div style='text-align:left;font-family: Arial; font-size: 16px;color:#FF00FF;text-indent:0em'&gt;笔记：&lt;/div&gt;{{/Notes}}
+</p>
+<p>
+{{#Notes}}&lt;div style='text-align:left;font-family: Arial; font-size: 16px;text-indent:1.5em;color:#000000;'&gt;{{Notes}}&lt;/div&gt;&lt;br&gt;{{/Notes}}
+</p>
+<p>
+{{#21世纪英汉汉英双向词典}}&lt;div style='text-align:left;font-family: Arial; font-size: 14px;color:#FF0000;text-indent:0em;text-align: center'&gt;21世纪英汉汉英双向词典&lt;/div&gt;&lt;br&gt;{{/21世纪英汉汉英双向词典}}
+{{#21世纪英汉汉英双向词典}}&lt;div style='font-family: Arial; font-size: 16px;'&gt;{{21世纪英汉汉英双向词典}}&lt;/div&gt;&lt;br&gt;{{/21世纪英汉汉英双向词典}}
+</p>
+<p>
+{{#朗道英汉字典5.0}}&lt;div style='border:1px solid #FF0000;text-align:left;font-family: Arial; font-size: 14px;color:#FF0000;text-indent:0em;text-align: center;'&gt;朗道英汉字典&lt;/div&gt;&lt;br&gt;{{/朗道英汉字典5.0}}
+{{#朗道英汉字典5.0}}&lt;div style='font-family: Arial; font-size: 16px;'&gt;{{朗道英汉字典5.0}}&lt;/div&gt;&lt;br&gt;{{/朗道英汉字典5.0}}
+</p>
+<p>
+{{#英语字根字典}}&lt;div style='border:1px solid #FF0000;text-align:left;font-family: Arial; font-size: 14px;color:#FF0000;text-indent:0em;text-align: center;'&gt;英语字根字典&lt;/div&gt;&lt;br&gt;{{/英语字根字典}}
+{{#英语字根字典}}&lt;div style='font-family: Arial; font-size: 16px;'&gt;{{英语字根字典}}&lt;/div&gt;&lt;br&gt;{{/英语字根字典}}
+</p>
+<p>
+{{#牛津英汉双解美化版}}&lt;div style='border:1px solid #FF0000;text-align:left;font-family: Arial; font-size: 14px;color:#FF0000;text-indent:0em;text-align: center;'&gt;牛津英汉双解美化版&lt;/div&gt;&lt;br&gt;{{/牛津英汉双解美化版}}
+{{#牛津英汉双解美化版}}&lt;div style='font-family: Arial; font-size: 16px;'&gt;{{牛津英汉双解美化版}}&lt;/div&gt;&lt;br&gt;{{/牛津英汉双解美化版}}
+</p>
+<p>
+{{#CDICT5英汉辞典}}&lt;div style='border:1px solid #FF0000;text-align:left;font-family: Arial; font-size: 14px;color:#FF0000;text-indent:0em;text-align: center'&gt;CDICT5英汉辞典&lt;/div&gt;&lt;br&gt;{{/CDICT5英汉辞典}}
+{{#CDICT5英汉辞典}}&lt;div style='font-family: Arial; font-size: 16px;'&gt;{{CDICT5英汉辞典}}&lt;/div&gt;&lt;br&gt;{{/CDICT5英汉辞典}}
+</p>
+<p>
+&lt;div style='font-family: Arial; font-size: 18px;'&gt;&lt;/div&gt;&lt;br&gt;
+</p>
+<p>
+&lt;div style='font-family: Arial; font-size: 20px;'&gt;{{图片}}&lt;/div&gt;&lt;br&gt;
+</p>
+<p>
+{{#Tags}}&lt;div style='border:1px solid #000000;background-color:#FFFFFF;text-align:left;font-family: Arial; font-size: 15px;color:#0489B1;'&gt;标签： {{Tags}}&lt;/div&gt;{{/Tags}}
+</p>
+</blockquote>
+
+
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3">总结</h2>
+<div class="outline-text-2" id="text-3">
+
+<p>  限于个人水平，暂时只能将美化做到这种地步。主要有一个问题就是，如果查询单词中出现了词组，那么配色中的第一二三列会出现配色方案的混乱（会代码的可以从我写的perl脚本中知道这种错误出现的原因），希望高手能够同我一起解决。
+</p>
+<p>
+  此外我还附上完整版的 <a href="http://file-bemyself.qiniudn.com/dict2anki">dict2anki</a> <a href="http://file-bemyself.qiniudn.com/.beautify.pl">.beautify.pl</a> 下载地址，请点击名称下载既可。.beautiful.pl放在家目录即可，其会隐藏，主要是为了不干扰家目录的文件。
+</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+<p class="footnote"><sup><a class="footnum" name="fn-.1" href="#fnr-.1">1</a></sup> 参考：<a href="http://zh.wikipedia.org/zh-cn/Anki">http://zh.wikipedia.org/zh-cn/Anki</a>
+</p>
+
+
+</div>
+</div>
+
+</div>
+</div>

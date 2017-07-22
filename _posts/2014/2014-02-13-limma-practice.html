@@ -1,0 +1,418 @@
+---
+layout: post
+title: 使用limma包分析GEO芯片数据
+categories:
+- R
+tags:
+- bioinformatics
+- R
+- limma
+---
+
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 总述</a></li>
+<li><a href="#sec-2">2 数据的获取</a></li>
+<li><a href="#sec-3">3 数据的初处理</a></li>
+<li><a href="#sec-4">4 limma包的分析</a>
+<ul>
+<li><a href="#sec-4-1">4.1 背景矫正</a></li>
+<li><a href="#sec-4-2">4.2 组内归一化</a></li>
+<li><a href="#sec-4-3">4.3 芯片间归一化</a></li>
+<li><a href="#sec-4-4">4.4 差异基因的挑选</a></li>
+</ul>
+</li>
+<li><a href="#sec-5">5 后续分析</a></li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1">总述<sup><a class="footref" name="fnr-.1" href="#fn-.1">1</a></sup></h2>
+<div class="outline-text-2" id="text-1">
+
+<p>  limma 包是Bioconductor中分析芯片数据的一个标准包。它具有分析芯片的一整套流程（数据读入，背景矫正，芯片内归一化，芯片间归一化，差异基因删选），并且能够分析单色和双色芯片，在bioconductor中是一个比较权威的芯片分析包。似乎最近也可以用来分析基因组数据，大家可以去尝试一下。
+</p>
+<p>
+  本文结合自己分析GSE21009芯片的经验，大致概览了limma的分析流程。这篇文章为方便只分析了第三四个芯片（M2-B）。这也是我第一次使用limma包进行分析，如有不足，敬请大家批评指正！
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2">数据的获取</h2>
+<div class="outline-text-2" id="text-2">
+
+<p>  对于GEO上的数据，R中有一个GEOquery包能够方便的获取NCBI上的芯片数据，同时也能够实现代码的自动化。不足的是，使用过程中出现了一些数据类型的混乱，下面会有所提及。
+</p>
+<p>  
+  代码如下（包含分析所用的包）：
+</p>
+
+
+
+<pre class="example">library(GEOquery)
+library(Biobase)
+library(limma)        #主要用这个包分析
+library(plyr)
+
+m4.p &lt;- getGEO('GSE21009', GSEMatrix=FALSE, destdir="./origin2/")  #如此获得是Matrix类的表达数据，默认GSEMatrix=TRUE  
+</pre>
+
+
+<p>  
+  如果有原始数据，getGEO()命令会自动下载。并保存在destdir中。
+</p>
+<p>  
+  如果想查看下载的这个大类中各个数据的信息，可使用以下的命令：
+</p>
+
+
+
+<pre class="example">                                        # 基本信息的获取
+## 查看包含的GSM类
+names(GSMList(m4.p))
+## 查看包含的GPL
+names(GPLList(m4.p))
+## 查看GSM对应的平台
+lapply(GSMList(m4.p),function(x) {Meta(x)$platform})
+## 获取第一个GSM的类型及信息
+class(GSMList(m4.p)[[1]])
+Meta(GSMList(m4.p)[[1]])        # 获取芯片信息
+## 查看GSM的列信息
+Columns(GSMList(m4.p)[[1]])
+## 获取ID信息
+Table(GPLList(m4.p)[[1]])$ID        # 获取GPL，忽略平台信息等，直接生成一个data.frame结构
+</pre>
+
+
+<p>
+  以上是针对非Matrix类的，对于获取的Matrix类可使用head()，names()，varLabels()，featureNames()，sampleNames()，phenoData及pData获取其基本信息，请使用?+函数名查询。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3">数据的初处理</h2>
+<div class="outline-text-2" id="text-3">
+
+<p>  本文从GEO获取的数据是经过一些处理的，似乎不能直接用limma的函数直接读取，因此第一步是先生成能够被limma分析的数据结构————RGList。
+</p>
+<p>
+  这是关于RGList类的介绍：
+</p>
+<p>
+  ## RGList-class
+</p>
+<p>
+  ### Slots/List Components:
+</p>
+<p>
+  ###
+</p>
+<p>
+  ###     ‘RGList’ objects can be created by ‘new("RGList",RG)’ where ‘RG’
+</p>
+<p>
+  ###     is a list. Objects of this class contains no slots (other than
+</p>
+<p>
+  ###     ‘.Data’), but objects should contain the following list
+</p>
+<p>
+  ###     components:
+</p>
+
+<p>  
+  ###       ‘R’  numeric matrix containing the red (cy5) foreground intensities.  Rows correspond to spots and columns to arrays.  
+</p>
+<p>
+  ###       ‘G’  numeric matrix containing the green (cy3) foreground intensities. Rows correspond to spots and columns to arrays. 
+</p>
+
+<p>      
+  ###     Optional components include
+</p>
+
+<p>  
+  ###       ‘Rb’       numeric matrix containing the red (cy5) background intensities                                                                                                                                                        
+  ###       ‘Gb’       numeric matrix containing the green (cy3) background intensities                                                                                                                                                      
+  ###       ‘weights’  numeric matrix of same dimension as ‘R’ containing relative spot quality weights.  Elements should be non-negative.                                                                                                   
+  ###       ‘other’    list containing other matrices, all of the same dimensions as ‘R’ and ‘G’.                                                                                                                                            
+  ###       ‘genes’    data.frame containing probe information. Should have one row for each spot. May have any number of columns.                                                                                                           
+  ###       ‘targets’  data.frame containing information on the target RNA samples.  Rows correspond to arrays.  May have any number of columns. Usually includes columns ‘Cy3’ and ‘Cy5’ specifying which RNA was hybridized to each array. 
+</p>
+<p>
+  ###       ‘printer’  list containing information on the process used to print the spots on the arrays.  See PrintLayout.                                                                                                                   
+</p>
+
+<p>
+  ###     Valid ‘RGList’ objects may contain other optional components, but
+</p>
+<p>
+  ###     all probe or array information should be contained in the above
+</p>
+<p>
+  ###     components.
+</p>
+<p>
+  以下代码是将我们从GEO获取的原始数据转换成limma可以直接使用的RGList类：
+</p>
+
+
+
+<pre class="example">### 读取数据
+gs.3 &lt;- Table(GSMList(m4.p)[[3]])
+gs.4 &lt;- Table(GSMList(m4.p)[[4]])
+### 计算RGList R G Rb Gb数值
+#### 原数据的修饰，方便引用
+library(plyr)
+colnames(gs.3) &lt;- revalue(colnames(gs.3),c("F635 Median"="R","F532 Median"="G","F635 Median - B635"="R.b","F532 Median - B532"="G.b"))        #更改名字，以方便引用
+colnames(gs.4) &lt;- revalue(colnames(gs.4),c("F635 Median"="R","F532 Median"="G","F635 Median - B635"="R.b","F532 Median - B532"="G.b"))
+#### 红绿值
+or &lt;- data.frame(myb.a=gs.3$R,myb.b=gs.4$R)        # Red
+og &lt;- data.frame(myb.a=gs.3$G,myb.b=gs.4$G)        # green
+colnames(or) &lt;- c("myb.a","myb.b")        # colnames经过上步木有预期改变，似乎要调整
+colnames(og) &lt;- c("myb.a","myb.b")        # colnames经过上步木有预期改变，似乎要调整
+#### 背景值
+orb &lt;- data.frame(myb.a=gs.3$R-gs.3$R.b,myb.b=gs.4$R-gs.4$R.b)        # red background
+ogb &lt;- data.frame(myb.a=gs.3$G-gs.3$G.b,myb.b=gs.4$G-gs.4$G.b)        # green background
+colnames(orb) &lt;- c("myb.a","myb.b")
+colnames(ogb) &lt;- c("myb.a","myb.b")
+#### 对GPL的修饰，主要是数据类型的改变（使用GEOquery，不知道为啥读出来的类型完全是错的）
+gp.b &lt;- Table(GPLList(m4.p)[[2]])
+gp.b$ID &lt;- as.integer(gp.b$ID)
+gp.b$Block &lt;- as.integer(gp.b$Block)
+gp.b$Column &lt;- as.integer(gp.b$Column)
+gp.b$Row &lt;- as.integer(gp.b$Row)
+gp.b$Name &lt;- as.character(gp.b$Name)
+gp.b$GB_LIST &lt;- as.character(gp.b$GB_LIST)
+gp.b$SEQUENCE &lt;- as.character(gp.b$SEQUENCE)
+gp.b$LocusID &lt;- as.character(gp.b$LocusID)
+gp.b$Annotation &lt;- as.character(gp.b$Annotation)
+gp.b$SPOT_ID &lt;- as.character(gp.b$SPOT_ID)
+#### RGList中的genes值，似乎可以全部贴上去？
+genes &lt;- gp.b[,c(2,4,3,1,5)]
+#### 合并成RGList类
+mRG &lt;- list(R=as.matrix(or),G=as.matrix(og),Rb=as.matrix(orb),Gb=as.matrix(ogb),genes=genes)
+RG &lt;- new("RGList",mRG)
+</pre>
+
+
+<p>
+  而对于原始数据，可以直接使用readTargets()，read.maimages(), readGAL()命令生成RGList类，十分的方便。不过这样的函数只能处理图片软件读取出来的数值型的数据，不能直接读图（似乎R中就没有可以直接读图的包。。。）。
+</p>
+<p>  
+  读入单通道数据，可以设定green.only = TRUE即可，然后对应读入columns = list(G = "Col1", Gb = "Col2")（这是抄袭的，自己没有实践过）。读入的数据，如果是单通道，则成为EListRaw class；如果是双通道，则是RGList class。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4">limma包的分析</h2>
+<div class="outline-text-2" id="text-4">
+
+<p>接下来就进入重点，使用limma包分析我们的RGList类。
+</p>
+<p>
+limma包可以查看芯片的信号情况：
+</p>
+
+
+
+<pre class="example">### 获得输出
+RG$printer &lt;- getLayout(RG$genes)
+### 绘制芯片图
+pdf(file="./result/B-M2/p.image.pdf",width=6,height=6)
+imageplot(log2(RG$R[,1]), RG$printer, low="white", high="red")
+dev.off()
+</pre>
+
+
+<p>
+使用pdf()仅仅只是将图保存下来。
+</p>
+
+</div>
+
+<div id="outline-container-4-1" class="outline-3">
+<h3 id="sec-4-1">背景矫正</h3>
+<div class="outline-text-3" id="text-4-1">
+
+<p>limma包中专门有一个函数进行背景的矫正，即backgroundCorrect()函数。
+</p>
+
+
+
+<pre class="example">### 背景矫正
+RG &lt;- backgroundCorrect(RG, method="normexp", offset=0 ,normexp.method="saddle")        # 默认 “saddle” 亦可选择“mle”
+</pre>
+
+
+<p>
+method有“auto”，“none”，“subtract”，"half"，"minimum"，"movingmin"，"edwards"或者"normexp"等方法；
+</p>
+<p>
+在method取“normexp”时，可以取"saddle"，"mle"，"rma"或者"rma75"。
+</p>
+<p>
+有作者建议使用“mle”或者“saddle”，两个运行速度也差不多。如果数据中含有“形态背景估计（morphological background estimates）”，比如SPOT和GenePix图像处理软件，那么method = "subtract"也就较好的表现。
+</p>
+<p>
+当使用method = "subtract"，这段代码可省略，因为在组内归一化中，默认使用扣除法进行估值。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-4-2" class="outline-3">
+<h3 id="sec-4-2">组内归一化</h3>
+<div class="outline-text-3" id="text-4-2">
+
+
+<p>
+代码如下：
+</p>
+
+
+
+<pre class="example">### 芯片内归一化前的MA图
+pdf(file="./result/B-M2/p.be.nw.pdf",width=6,height=6)
+plotPrintTipLoess(RG)
+dev.off()
+### 芯片内归一化
+MA &lt;- normalizeWithinArrays(RG, method="printtiploess")        # 默认"printtiploess"
+### 芯片内归一化后的MA图
+pdf(file="./result/B-M2/p.af.nw.pdf",width=6,height=6)
+plotPrintTipLoess(MA)
+dev.off()
+</pre>
+
+
+<p>
+绘制loess回归的命令为plotPrintTipLoess()，当然也可以使用plotMA()；
+</p>
+<p>
+method："none"，"median"，"loess"，"printtiploess"，"composite"，"control"和"robustspline"。初始值设定为“printtiploess”，但是对于Agilent芯片或者小样本芯片（每个“点样块”少于150个探针）。可用选用的loess或者robustspline。“loess归一化方法假设了有相当大的一部分探针没有发生差异化表达，而不是上调或者下调的基因数差不多或者差异化程度围绕着0波动。”<sup><a class="footref" name="fnr-.2" href="#fn-.2">2</a></sup>。需要注意，组内归一化只是对单张芯片的M值进行了规整（不影响A值），但是对与组间各个通道没有进行比较。
+</p>
+<p>
+weight：是图像处理软件对探针权重的标记，如果使用weight，那么在归一化过程中weight为0的探针不会影响其他探针，这并不意味着这些探针会被剔除，它们同样会被归一化，也会出现在归一化的结果中。如果不想使用，那么weight设为NULL。
+</p>
+<p>
+iterations：设定loess的循环数，循环数越多，结果越强健（robust）。（暂时自己也不理解这个，都选默认）
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-4-3" class="outline-3">
+<h3 id="sec-4-3">芯片间归一化</h3>
+<div class="outline-text-3" id="text-4-3">
+
+<p>芯片内归一化后，必须进行芯片间归一化，才能横向比较各芯片数据。
+</p>
+
+
+
+<pre class="example">### 芯片间归一化前的箱线图
+pdf(file="./result/B-M2/p.be.nb.pdf",width=6,height=6)
+boxplot(MA$M~col(MA$M),names=colnames(MA$M))
+dev.off()
+### 芯片间归一化
+MA &lt;- normalizeBetweenArrays(MA,method = "scale")
+### 芯片间归一化后的箱线图
+pdf(file="./result/B-M2/p.af.nb.pdf",width=6,height=6)
+boxplot(MA$M~col(MA$M),names=colnames(MA$M))
+dev.off()
+</pre>
+
+
+<p>
+method：“none"，"scale"，"quantile"，"Aquantile"，"Gquantile"，“Rquantile”，“Tquantile”，“cyclicloess”。
+</p>
+<p>
+“scale”对log-ratio数值进行归一化；“quantile”对密度（intensity）进行归一化；“Aquantile”对A数值进行归一化，不调正M数值；"Gquantile"和“Rquantile”则分别对Green和Red通道进行归一化，适用于Green或者Red为“参考标准（common reference）”的样品；“Tquantile”表示样品分开归一化或者Green和Red一先一后进行归一化。
+</p>
+<p>
+本芯片看介绍似乎应该使用Aquantile进行归一化，但箱线图显示效果不好（不知道为什么？），因此使用scale方法。
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-4-4" class="outline-3">
+<h3 id="sec-4-4">差异基因的挑选</h3>
+<div class="outline-text-3" id="text-4-4">
+
+
+<p>
+这里得接触limma包将所有芯片分析统一的一个模型————“线性模型”。这是limma差异基因挑选的精华，Bioconductor所出的书籍《Bioinformatics and Computational Biology Solutions using R and Bioconductor》专门有一章介绍了各个模型的建立，可参考链接<a href="http://www.statsci.org/smyth/pubs/limma-biocbook-reprint.pdf">点这里</a>。
+</p>
+<p>
+我们分析的这个芯片比较简单，直接使用以下办法代码即可。关于模型建立可参考上面链接或者上面的书籍。（表示本人也不是非常理解。。。就不在这里误人子弟了。。。）
+</p>
+
+
+
+<pre class="example">## limma包寻找差异表达基因
+## 实验设计
+design &lt;- c(1,1) 
+## 模型拟合
+fit &lt;- lmFit(MA, design)
+fit &lt;- eBayes(fit)
+## 差异基因输出
+diffgene.B.M2 &lt;- topTable(fit, adjust="fdr", sort.by="B", number=1000)
+</pre>
+
+
+<p>
+结果输出的排序可选用B、p、P等。（我使用p.value=0.05来筛选p&lt;0.05的基因，但是不知道为啥这个参数没有生效？）
+</p>
+<p>
+一般挑选差异基因看adj.P.Val这一列。
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5">后续分析</h2>
+<div class="outline-text-2" id="text-5">
+
+<p>后续分析，最重要的是获取gene的Locus号，这个比较简单，我使用的是merge()命令<sup><a class="footref" name="fnr-.3" href="#fn-.3">3</a></sup>。
+</p>
+
+
+
+<pre class="example">diffgene.B.M2 &lt;- merge(diffgene.B.M2,gp.b)
+</pre>
+
+
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+<p class="footnote"><sup><a class="footnum" name="fn-.1" href="#fnr-.1">1</a></sup> 推荐阅读 <a href="http://blog.sina.com.cn/s/blog_61f013b8010138ub.html">http://blog.sina.com.cn/s/blog<sub>61f013b8010138ub</sub>.html</a> 本文关于函数解释的，基本借鉴于此
+</p>
+
+
+<p class="footnote"><sup><a class="footnum" name="fn-.2" href="#fnr-.2">2</a></sup> limma: Linear Models for Microarray Data User’s Guide
+</p>
+
+
+<p class="footnote"><sup><a class="footnum" name="fn-.3" href="#fnr-.3">3</a></sup> 参考阅读 <a href="http://manuals.bioinformatics.ucr.edu/home/R_BioCondManual">http://manuals.bioinformatics.ucr.edu/home/R<sub>BioCondManual</sub></a> 该链接有更多的代码实例和后续分析实例。
+</p>
+
+
+</div>
+</div>
+
+</div>
+</div>
